@@ -57,6 +57,9 @@ export const BANKING_EVALUATION_TESTS: EvaluationTest[] = [
   {
     id: "does-not-use-2024-policy",
     label: "Does not rely on the outdated 2024 policy",
+    // Matches phrases characteristic of the superseded 2024 policy:
+    // - explicit year+policy references, or
+    // - the blanket "no waivers permitted" / "not eligible under any circumstance" language
     test: (r) =>
       !/2024.*policy|policy.*2024|no.*waiver.*permitted|not.*eligible.*waiver.*circumstance/i.test(r),
     explanation: (passed) =>

@@ -2,6 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "./config.js";
@@ -12,6 +13,14 @@ import analyzeRouter from "./routes/analyze.js";
 import replayRouter from "./routes/replay.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,             // 60 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMITED", message: "Too many requests. Please try again later." } },
+});
 
 export function createApp(): express.Application {
   const app = express();
@@ -32,6 +41,9 @@ export function createApp(): express.Application {
 
   // Body parsing
   app.use(express.json({ limit: "1mb" }));
+
+  // Rate limiting on all API routes
+  app.use("/api", apiLimiter);
 
   // API routes
   app.use("/api/health", healthRouter);

@@ -33,7 +33,8 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     const prompt = buildAnalyzePrompt(task, contextBlocks);
     const raw = await generateWithGemini(prompt);
 
-    // Extract JSON from potential markdown code blocks
+    // Gemini may wrap JSON in a markdown code fence (```json ... ```).
+    // Attempt to extract the inner JSON; fall back to the raw text if no fence is found.
     const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, raw];
     const jsonStr = jsonMatch[1]?.trim() ?? raw.trim();
 

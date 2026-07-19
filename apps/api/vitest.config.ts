@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   test: {
@@ -6,7 +7,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@context-meter/shared": new URL("../../packages/shared/src/index.ts", import.meta.url).pathname,
+      "@context-meter/shared": fileURLToPath(
+        new URL("../../packages/shared/src/index.ts", import.meta.url)
+      ),
     },
   },
 });

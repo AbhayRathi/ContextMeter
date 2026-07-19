@@ -308,7 +308,9 @@ body {
   margin-top: 1px;
 }
 
-.eval-content {}
+.eval-content {
+  min-width: 0;
+}
 
 .eval-label {
   font-size: 0.875rem;

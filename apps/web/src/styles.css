@@ -1,0 +1,365 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f1117;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #2d3748;
+}
+
+.header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #63b3ed;
+  letter-spacing: -0.5px;
+}
+
+.header p {
+  color: #a0aec0;
+  margin-top: 8px;
+  font-size: 0.95rem;
+}
+
+.synthetic-notice {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: #744210;
+  color: #fbd38d;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #1a202c;
+  border-radius: 8px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #3182ce;
+  color: white;
+}
+
+.btn-success {
+  background: #276749;
+  color: #9ae6b4;
+}
+
+.btn-warning {
+  background: #744210;
+  color: #fbd38d;
+}
+
+.btn-danger {
+  background: #742a2a;
+  color: #feb2b2;
+}
+
+.btn-ghost {
+  background: #2d3748;
+  color: #a0aec0;
+}
+
+/* Status */
+.status-bar {
+  padding: 8px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-loading {
+  background: #2a3a5e;
+  color: #90cdf4;
+}
+
+.status-error {
+  background: #742a2a;
+  color: #feb2b2;
+}
+
+/* Metrics */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background: #1a202c;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.metric-card .label {
+  font-size: 0.75rem;
+  color: #a0aec0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.metric-card .value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #63b3ed;
+}
+
+.metric-card .sub-value {
+  font-size: 0.75rem;
+  color: #68d391;
+  margin-top: 2px;
+}
+
+/* Sections */
+.section {
+  margin-bottom: 24px;
+}
+
+.section h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #90cdf4;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2d3748;
+}
+
+/* Context blocks */
+.context-blocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.context-block-card {
+  background: #1a202c;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 4px solid #4a5568;
+}
+
+.context-block-card.action-keep {
+  border-left-color: #48bb78;
+}
+
+.context-block-card.action-remove {
+  border-left-color: #fc8181;
+  opacity: 0.75;
+}
+
+.context-block-card.action-compress {
+  border-left-color: #f6ad55;
+}
+
+.context-block-card.action-refresh {
+  border-left-color: #63b3ed;
+}
+
+.block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.block-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge-keep { background: #276749; color: #9ae6b4; }
+.badge-remove { background: #742a2a; color: #feb2b2; }
+.badge-compress { background: #744210; color: #fbd38d; }
+.badge-refresh { background: #2a3a5e; color: #90cdf4; }
+.badge-unknown { background: #2d3748; color: #a0aec0; }
+
+.block-meta {
+  font-size: 0.75rem;
+  color: #718096;
+  margin-bottom: 6px;
+}
+
+.block-reason {
+  font-size: 0.8rem;
+  color: #a0aec0;
+  font-style: italic;
+  border-top: 1px solid #2d3748;
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+/* Response comparison */
+.response-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .response-grid { grid-template-columns: 1fr; }
+}
+
+.response-box {
+  background: #1a202c;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.response-box h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2d3748;
+}
+
+.response-box.baseline h3 { color: #fc8181; }
+.response-box.optimized h3 { color: #68d391; }
+
+.response-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #cbd5e0;
+}
+
+.response-label {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #718096;
+}
+
+/* Evaluation */
+.eval-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eval-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #1a202c;
+  border-radius: 6px;
+  border: 1px solid #2d3748;
+}
+
+.eval-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.eval-content {
+  min-width: 0;
+}
+
+.eval-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.eval-label.passed { color: #68d391; }
+.eval-label.failed { color: #fc8181; }
+
+.eval-explanation {
+  font-size: 0.8rem;
+  color: #a0aec0;
+}
+
+/* Conflicts */
+.conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.conflict-item {
+  background: #1a202c;
+  border: 1px solid #744210;
+  border-left: 4px solid #e53e3e;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.conflict-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.conflict-desc {
+  font-size: 0.875rem;
+  color: #cbd5e0;
+  margin-bottom: 8px;
+}
+
+.conflict-resolution {
+  font-size: 0.8rem;
+  color: #68d391;
+  font-style: italic;
+}
+
+.severity-high { color: #fc8181; }
+.severity-medium { color: #f6ad55; }
+.severity-low { color: #68d391; }

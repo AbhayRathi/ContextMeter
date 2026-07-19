@@ -5,11 +5,17 @@ import type {
   ContextBlock,
 } from "@context-meter/shared";
 
-const API_BASE =
-  (import.meta as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ?? "/api";
+// Normalize the base URL at initialization: strip trailing slash.
+// When VITE_API_BASE_URL is not set, paths like /api/scenarios are used directly
+// (relative to the current origin via Vite's dev proxy).
+const rawBase =
+  (import.meta as { env?: { VITE_API_BASE_URL?: string } }).env
+    ?.VITE_API_BASE_URL ?? "";
+const API_BASE = rawBase.replace(/\/$/, "");
 
 function apiUrl(path: string): string {
-  return `${API_BASE}${path}`.replace(/\/api\/api/, "/api");
+  // path must start with /api/... — API_BASE is either "" or an absolute origin
+  return `${API_BASE}${path}`;
 }
 
 export interface AnalyzeResponse extends ContextAnalysisResult {

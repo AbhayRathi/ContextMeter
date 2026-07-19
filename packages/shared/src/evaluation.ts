@@ -11,7 +11,8 @@ export const BANKING_EVALUATION_TESTS: EvaluationTest[] = [
   {
     id: "mentions-10000-limit",
     label: "Mentions current wire-transfer limit of $10,000",
-    test: (r) => /\$10[,.]?000/i.test(r) || /10000/i.test(r),
+    // Accept US-formatted "$10,000" or bare "10000"; reject "$10.000" (European format)
+    test: (r) => /\$10,000|\$10000|10,000\s*(?:dollars?|per)|10000\s*(?:dollars?|per)/i.test(r),
     explanation: (passed) =>
       passed
         ? "Response correctly states the current wire-transfer limit of $10,000."
@@ -20,7 +21,8 @@ export const BANKING_EVALUATION_TESTS: EvaluationTest[] = [
   {
     id: "does-not-claim-5000",
     label: "Does not claim the wire-transfer limit is $5,000",
-    test: (r) => !/\$5[,.]?000/i.test(r) && !/5000/i.test(r),
+    // Reject US-formatted "$5,000" or bare "5000" when used as a limit value
+    test: (r) => !/\$5,000|\$5000|5,000\s*(?:dollars?|per)|5000\s*(?:dollars?|per)/i.test(r),
     explanation: (passed) =>
       passed
         ? "Response does not reference the outdated $5,000 limit."
@@ -57,11 +59,15 @@ export const BANKING_EVALUATION_TESTS: EvaluationTest[] = [
   {
     id: "does-not-use-2024-policy",
     label: "Does not rely on the outdated 2024 policy",
-    // Matches phrases characteristic of the superseded 2024 policy:
-    // - explicit year+policy references, or
-    // - the blanket "no waivers permitted" / "not eligible under any circumstance" language
-    test: (r) =>
-      !/2024.*policy|policy.*2024|no.*waiver.*permitted|not.*eligible.*waiver.*circumstance/i.test(r),
+    test: (r) => {
+      // Check for each characteristic phrase of the superseded 2024 policy separately
+      // for clarity and easier future maintenance.
+      const referencesYear = /2024.*policy|policy.*2024/i.test(r);
+      const usesBlankBan = /no.*waiver.*permitted/i.test(r);
+      const usesAbsoluteIneligibility =
+        /not.*eligible.*waiver.*circumstance/i.test(r);
+      return !(referencesYear || usesBlankBan || usesAbsoluteIneligibility);
+    },
     explanation: (passed) =>
       passed
         ? "Response does not rely on the superseded 2024 policy."

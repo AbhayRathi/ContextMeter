@@ -34,9 +34,9 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     const raw = await generateWithGemini(prompt);
 
     // Gemini may wrap JSON in a markdown code fence (```json ... ```).
-    // Attempt to extract the inner JSON; fall back to the raw text if no fence is found.
-    const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, raw];
-    const jsonStr = jsonMatch[1]?.trim() ?? raw.trim();
+    // Extract the inner content if a fence is present, otherwise use the raw text.
+    const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonStr = (fenceMatch?.[1] ?? raw).trim();
 
     const jsonParsed: unknown = JSON.parse(jsonStr);
     const validated = ContextAnalysisResultSchema.safeParse(jsonParsed);

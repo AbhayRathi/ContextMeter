@@ -112,11 +112,20 @@ docker run -p 8080:8080 -e USE_MOCK_GEMINI=true context-meter
 
 ## Deployment
 
-`apps/studio-web`'s frontend code always calls relative paths (`fetch('/api/...')`, no base-URL override anywhere) — it must be served from the **same origin** as the API. `apps/api/src/app.ts` already does this in production mode (serves `apps/studio-web/dist` + handles `/api/*`), so the natural deployment shape is **one process, one deployment**, not a separate frontend + API.
+`apps/studio-web`'s frontend code always calls relative paths (`fetch('/api/...')`, no base-URL override anywhere) — it must be served from the **same origin** as the API. There are two ways to get that; pick one.
 
-### Cloud Run (recommended for the same-origin build)
+### Vercel — one project, static frontend + serverless API (recommended)
 
-The existing multi-stage `Dockerfile` builds `packages/shared` → `apps/api` → `apps/studio-web` and runs one Node process serving both:
+Root-level `vercel.json` + `api/[...path].ts` build `packages/shared` and `apps/studio-web` (static output), and route every `/api/*` request to a single serverless function wrapping the same `createApp()` Express app used everywhere else — Vercel serves the static build and the function from the same domain, so this is genuinely same-origin with zero CORS/proxy config, and `CORS_ORIGIN` doesn't need to be set at all.
+
+1. In the Vercel dashboard, import this GitHub repo as a new project with **Root Directory = repo root** (not `apps/api` — that's the older API-only setup below).
+2. Vercel picks up the root `vercel.json` automatically (build command, output directory, SPA rewrite already configured).
+3. Set environment variables: `USE_MOCK_GEMINI=true` (or `false` + `GEMINI_API_KEY`/`GEMINI_MODEL`). Nothing else is required.
+4. Deploy. Verify `https://<your-project>.vercel.app/api/health` returns `{"status":"ok",...}` and the homepage loads the actual app (not a 404).
+
+### Cloud Run — one Docker image, same idea
+
+The multi-stage `Dockerfile` builds `packages/shared` → `apps/api` → `apps/studio-web` and runs one persistent Node process serving both:
 
 ```bash
 gcloud run deploy context-meter \
@@ -127,13 +136,7 @@ gcloud run deploy context-meter \
   --set-env-vars "USE_MOCK_GEMINI=true,NODE_ENV=production"
 ```
 
-No `CORS_ORIGIN` configuration is needed for this path — the CORS middleware always allows same-origin requests regardless of the configured allowlist (see `apps/api/src/app.ts`), which is what makes this work without knowing the Cloud Run URL ahead of time.
-
-### Vercel (API-only, separate origin — needs a proxy)
-
-An earlier iteration of this project deployed just `apps/api` as a Vercel serverless project (`apps/api/vercel.json` + `apps/api/api/index.ts`) with the frontend hosted elsewhere and CORS configured via `CORS_ORIGIN`. **This doesn't work for `apps/studio-web` as-is** — its relative fetches would hit the frontend's own origin's `/api/*`, not Vercel's, regardless of CORS. It only works if whatever hosts the frontend also reverse-proxies `/api/*` to the Vercel deployment. If you want this split-origin shape, set `CORS_ORIGIN` to the frontend's origin(s) and set up that proxy; otherwise use Cloud Run above.
-
-**Known caveat either way**: `express-rate-limit`'s in-memory store resets per cold start and isn't shared across concurrent instances — fine for a demo, not a real rate limit in production.
+Also same-origin, also no `CORS_ORIGIN` needed — the CORS middleware always allows same-origin requests regardless of the configured allowlist (see `apps/api/src/app.ts`).
 
 Alternative: build and push the image yourself instead of `--source .`:
 ```bash
@@ -141,6 +144,12 @@ docker tag context-meter gcr.io/YOUR_PROJECT/context-meter
 docker push gcr.io/YOUR_PROJECT/context-meter
 gcloud run deploy context-meter --image gcr.io/YOUR_PROJECT/context-meter --platform managed --region us-central1 --allow-unauthenticated
 ```
+
+### Vercel — API only, separate origin (older/simpler, needs a proxy elsewhere)
+
+`apps/api/vercel.json` + `apps/api/api/index.ts` deploy just the API as its own Vercel project (Root Directory = `apps/api`), with no static frontend attached. Only useful if the frontend is hosted somewhere else entirely and that host reverse-proxies `/api/*` back to this deployment — plain CORS alone won't make `apps/studio-web`'s relative fetches reach a separate origin. Set `CORS_ORIGIN` to the frontend's origin(s) if you go this route.
+
+**Known caveat, any path**: `express-rate-limit`'s in-memory store resets per cold start / isn't shared across concurrent instances — fine for a demo, not a real rate limit in production.
 
 ## API Documentation
 

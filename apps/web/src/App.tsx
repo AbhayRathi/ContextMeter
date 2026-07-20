@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import type {
   Scenario,
   ContextBlock,
@@ -10,8 +10,14 @@ import { ContextBlockCard } from "./components/ContextBlockCard.js";
 import { ResponseComparison } from "./components/ResponseComparison.js";
 import { EvaluationPanel } from "./components/EvaluationPanel.js";
 import { ConflictPanel } from "./components/ConflictPanel.js";
-import { fetchScenario, analyzeContext, replayAgent } from "./api.js";
-import type { AnalyzeResponse, ReplayResponse } from "./api.js";
+import {
+  fetchScenarios,
+  fetchScenario,
+  analyzeContext,
+  analyzeContextHeuristic,
+  replayAgent,
+} from "./api.js";
+import type { AnalyzeResponse, ReplayResponse, ScenarioSummary } from "./api.js";
 
 type AppState =
   | "INITIAL"
@@ -25,6 +31,7 @@ export default function App(): React.ReactElement {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [scenarioList, setScenarioList] = useState<ScenarioSummary[]>([]);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [analysis, setAnalysis] = useState<AnalyzeResponse | null>(null);
   const [optimizedBlocks, setOptimizedBlocks] = useState<ContextBlock[]>([]);
@@ -32,11 +39,17 @@ export default function App(): React.ReactElement {
 
   const clearError = () => setError(null);
 
-  const handleLoadTrace = useCallback(async () => {
+  useEffect(() => {
+    fetchScenarios()
+      .then(setScenarioList)
+      .catch((e) => setError(`Failed to load scenario list: ${(e as Error).message}`));
+  }, []);
+
+  const handleLoadTrace = useCallback(async (scenarioId: string) => {
     setLoading(true);
     clearError();
     try {
-      const data = await fetchScenario("banking-policy-conflict");
+      const data = await fetchScenario(scenarioId);
       setScenario(data);
       setState("TRACE_LOADED");
     } catch (e) {
@@ -52,6 +65,7 @@ export default function App(): React.ReactElement {
     clearError();
     try {
       const data = await analyzeContext(
+        scenario.id,
         scenario.customerTask,
         scenario.contextBlocks
       );
@@ -59,6 +73,21 @@ export default function App(): React.ReactElement {
       setState("ANALYZED");
     } catch (e) {
       setError(`Analysis failed: ${(e as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [scenario]);
+
+  const handleAnalyzeHeuristic = useCallback(async () => {
+    if (!scenario) return;
+    setLoading(true);
+    clearError();
+    try {
+      const data = await analyzeContextHeuristic(scenario.customerTask, scenario.contextBlocks);
+      setAnalysis(data);
+      setState("ANALYZED");
+    } catch (e) {
+      setError(`Heuristic analysis failed: ${(e as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -78,7 +107,7 @@ export default function App(): React.ReactElement {
     setLoading(true);
     clearError();
     try {
-      const data = await replayAgent(scenario.customerTask, optimizedBlocks);
+      const data = await replayAgent(scenario.id, scenario.customerTask, optimizedBlocks);
       setReplay(data);
       setState("REPLAYED");
     } catch (e) {
@@ -124,25 +153,45 @@ export default function App(): React.ReactElement {
         <h1>ContextMeter</h1>
         <p>Know what your AI agent knows—and what it should forget.</p>
         <span className="synthetic-notice">
-          ⚠ Synthetic banking data only · Not a real financial tool
+          ⚠ Synthetic demo data only · Not a real financial, support, or engineering tool
         </span>
       </header>
 
+      {/* Scenario picker */}
+      {state === "INITIAL" && (
+        <div className="section">
+          <h2>Choose a Scenario</h2>
+          <div className="controls">
+            {scenarioList.map((s) => (
+              <button
+                key={s.id}
+                className="btn btn-primary"
+                onClick={() => handleLoadTrace(s.id)}
+                disabled={loading}
+              >
+                {s.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Controls */}
       <div className="controls">
-        <button
-          className="btn btn-primary"
-          onClick={handleLoadTrace}
-          disabled={loading || state !== "INITIAL"}
-        >
-          Load Failed Trace
-        </button>
         <button
           className="btn btn-warning"
           onClick={handleAnalyze}
           disabled={loading || state !== "TRACE_LOADED"}
         >
           Analyze Context
+        </button>
+        <button
+          className="btn btn-ghost"
+          onClick={handleAnalyzeHeuristic}
+          disabled={loading || state !== "TRACE_LOADED"}
+          title="Similarity + recency scoring — no LLM, no canned answers"
+        >
+          Analyze (Heuristic)
         </button>
         <button
           className="btn btn-success"
@@ -209,7 +258,14 @@ export default function App(): React.ReactElement {
       {/* Context Blocks */}
       {scenario && (
         <div className="section">
-          <h2>Context Blocks ({scenario.contextBlocks.length})</h2>
+          <h2>
+            Context Blocks ({scenario.contextBlocks.length})
+            {analysis && (
+              <span className="badge badge-mode" style={{ marginLeft: 8 }}>
+                mode: {analysis.mode}
+              </span>
+            )}
+          </h2>
           <div className="context-blocks">
             {scenario.contextBlocks.map((block) => (
               <ContextBlockCard

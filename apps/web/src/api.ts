@@ -19,14 +19,26 @@ function apiUrl(path: string): string {
 }
 
 export interface AnalyzeResponse extends ContextAnalysisResult {
-  mode: "gemini" | "fallback";
+  mode: "gemini" | "fallback" | "heuristic";
 }
 
 export interface ReplayResponse {
   response: string;
   estimatedInputTokens: number;
   evaluation: EvaluationSummary;
-  mode: "gemini" | "fallback";
+  mode: "gemini" | "fallback" | "heuristic";
+}
+
+export interface ScenarioSummary {
+  id: string;
+  title: string;
+}
+
+export async function fetchScenarios(): Promise<ScenarioSummary[]> {
+  const res = await fetch(apiUrl("/api/scenarios"));
+  if (!res.ok) throw new Error(`Failed to load scenarios: ${res.status}`);
+  const data = (await res.json()) as { scenarios: ScenarioSummary[] };
+  return data.scenarios;
 }
 
 export async function fetchScenario(scenarioId: string): Promise<Scenario> {
@@ -36,26 +48,45 @@ export async function fetchScenario(scenarioId: string): Promise<Scenario> {
 }
 
 export async function analyzeContext(
+  scenarioId: string,
   task: string,
   contextBlocks: ContextBlock[]
 ): Promise<AnalyzeResponse> {
   const res = await fetch(apiUrl("/api/analyze"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ task, contextBlocks }),
+    body: JSON.stringify({ scenarioId, task, contextBlocks }),
   });
   if (!res.ok) throw new Error(`Analyze failed: ${res.status}`);
   return res.json() as Promise<AnalyzeResponse>;
 }
 
+/**
+ * Runs the pure similarity/recency-scoring engine instead of Gemini/canned
+ * fallback — no scenarioId, since it works on any task + block set.
+ */
+export async function analyzeContextHeuristic(
+  task: string,
+  contextBlocks: ContextBlock[]
+): Promise<AnalyzeResponse> {
+  const res = await fetch(apiUrl("/api/analyze/heuristic"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ task, contextBlocks }),
+  });
+  if (!res.ok) throw new Error(`Heuristic analyze failed: ${res.status}`);
+  return res.json() as Promise<AnalyzeResponse>;
+}
+
 export async function replayAgent(
+  scenarioId: string,
   task: string,
   selectedContextBlocks: ContextBlock[]
 ): Promise<ReplayResponse> {
   const res = await fetch(apiUrl("/api/replay"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ task, selectedContextBlocks }),
+    body: JSON.stringify({ scenarioId, task, selectedContextBlocks }),
   });
   if (!res.ok) throw new Error(`Replay failed: ${res.status}`);
   return res.json() as Promise<ReplayResponse>;

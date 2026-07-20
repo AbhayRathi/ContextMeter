@@ -11,25 +11,25 @@ const OPTIMIZED_RESPONSE =
 describe("evaluateResponse — baseline", () => {
   it("fails the $10,000 limit check", () => {
     const summary = evaluateResponse(BANKING_BASELINE_RESPONSE);
-    const r = summary.results.find((x) => x.id === "mentions-10000-limit");
+    const r = summary.results.find((x) => x.id === "eval-1");
     expect(r?.passed).toBe(false);
   });
 
   it("fails the eligibility check", () => {
     const summary = evaluateResponse(BANKING_BASELINE_RESPONSE);
-    const r = summary.results.find((x) => x.id === "eligible-for-waiver");
+    const r = summary.results.find((x) => x.id === "eval-3");
     expect(r?.passed).toBe(false);
   });
 
   it("fails the 90-day policy check", () => {
     const summary = evaluateResponse(BANKING_BASELINE_RESPONSE);
-    const r = summary.results.find((x) => x.id === "uses-90-day-policy");
+    const r = summary.results.find((x) => x.id === "eval-4");
     expect(r?.passed).toBe(false);
   });
 
   it("fails the 120-day history check", () => {
     const summary = evaluateResponse(BANKING_BASELINE_RESPONSE);
-    const r = summary.results.find((x) => x.id === "uses-120-day-history");
+    const r = summary.results.find((x) => x.id === "eval-5");
     expect(r?.passed).toBe(false);
   });
 
@@ -49,23 +49,23 @@ describe("evaluateResponse — optimized", () => {
 
   it("mentions $10,000 limit", () => {
     const summary = evaluateResponse(OPTIMIZED_RESPONSE);
-    const r = summary.results.find((x) => x.id === "mentions-10000-limit");
+    const r = summary.results.find((x) => x.id === "eval-1");
     expect(r?.passed).toBe(true);
   });
 
   it("states eligibility for waiver", () => {
     const summary = evaluateResponse(OPTIMIZED_RESPONSE);
-    const r = summary.results.find((x) => x.id === "eligible-for-waiver");
+    const r = summary.results.find((x) => x.id === "eval-3");
     expect(r?.passed).toBe(true);
   });
 });
 
 describe("evaluateResponse — context removal behavior", () => {
-  it("fails mentions-10000-limit when limit info is removed", () => {
+  it("fails eval-1 when limit info is removed", () => {
     const responseWithout10k =
       "You are eligible for an overdraft-fee waiver. Your last waiver was 120 days ago. The 90-day policy applies.";
     const summary = evaluateResponse(responseWithout10k, BANKING_EVALUATION_TESTS);
-    const r = summary.results.find((x) => x.id === "mentions-10000-limit");
+    const r = summary.results.find((x) => x.id === "eval-1");
     expect(r?.passed).toBe(false);
   });
 

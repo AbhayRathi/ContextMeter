@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { ALL_SCENARIOS } from "@context-meter/shared";
 import { createError } from "../middleware/errorHandler.js";
+import { toWireScenario } from "../adapters/studioContract.js";
 
 const router = Router();
 
 router.get("/", (_req, res) => {
-  const summaries = ALL_SCENARIOS.map((s) => ({ id: s.id, title: s.title }));
-  res.json({ scenarios: summaries });
+  res.json(ALL_SCENARIOS.map(toWireScenario));
 });
 
 router.get("/:scenarioId", (req, res, next) => {
@@ -23,7 +23,7 @@ router.get("/:scenarioId", (req, res, next) => {
     );
   }
 
-  res.json(scenario);
+  res.json(toWireScenario(scenario));
 });
 
 export default router;

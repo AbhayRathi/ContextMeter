@@ -227,6 +227,7 @@ body {
 .badge-compress { background: #744210; color: #fbd38d; }
 .badge-refresh { background: #2a3a5e; color: #90cdf4; }
 .badge-unknown { background: #2d3748; color: #a0aec0; }
+.badge-mode { background: #2a3a5e; color: #90cdf4; font-size: 0.65rem; vertical-align: middle; }
 
 .block-meta {
   font-size: 0.75rem;

@@ -29,6 +29,10 @@ describe("fixtures", () => {
     expect(BANKING_BASELINE_RESPONSE.length).toBeGreaterThan(10);
   });
 
+  it("has exactly 3 scenarios", () => {
+    expect(ALL_SCENARIOS).toHaveLength(3);
+  });
+
   it("all scenarios have unique IDs", () => {
     const ids = ALL_SCENARIOS.map((s) => s.id);
     const unique = new Set(ids);
@@ -39,6 +43,30 @@ describe("fixtures", () => {
     const ids = BANKING_CONTEXT_BLOCKS.map((b) => b.id);
     const unique = new Set(ids);
     expect(unique.size).toBe(ids.length);
+  });
+
+  it("validates every scenario against the schema", () => {
+    for (const scenario of ALL_SCENARIOS) {
+      const result = ScenarioSchema.safeParse(scenario);
+      expect(result.success, `Scenario ${scenario.id} should be valid`).toBe(true);
+    }
+  });
+
+  it("every scenario has a non-empty expectedOptimizedResponse and at least one fallback conflict", () => {
+    for (const scenario of ALL_SCENARIOS) {
+      expect(scenario.expectedOptimizedResponse.length).toBeGreaterThan(10);
+      expect(scenario.fallbackConflicts.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("every context block across all scenarios has a fallbackDecision and unique id within its scenario", () => {
+    for (const scenario of ALL_SCENARIOS) {
+      const ids = scenario.contextBlocks.map((b) => b.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const block of scenario.contextBlocks) {
+        expect(block.fallbackDecision, `Block ${block.id} in ${scenario.id} should have a fallbackDecision`).toBeDefined();
+      }
+    }
   });
 });
 

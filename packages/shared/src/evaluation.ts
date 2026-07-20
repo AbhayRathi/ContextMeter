@@ -5,75 +5,198 @@ export interface EvaluationTest {
   label: string;
   test: (response: string) => boolean;
   explanation: (passed: boolean) => string;
+  /** Fixed description of what the known baseline response does on this test, e.g. "FAILED — Claimed limit is $5,000". */
+  baselineResult?: string;
+  /** "PASSED — .../FAILED — ..." style label for whichever response is currently being evaluated. */
+  resultLabel?: (passed: boolean) => string;
 }
 
 export const BANKING_EVALUATION_TESTS: EvaluationTest[] = [
   {
-    id: "mentions-10000-limit",
-    label: "Mentions current wire-transfer limit of $10,000",
+    id: "eval-1",
+    label: "Mentions $10,000 wire limit",
     // Accept US-formatted "$10,000" or bare "10000"; reject "$10.000" (European format)
     test: (r) => /\$10,000|\$10000|10,000\s*(?:dollars?|per)|10000\s*(?:dollars?|per)/i.test(r),
-    explanation: (passed) =>
-      passed
-        ? "Response correctly states the current wire-transfer limit of $10,000."
-        : "Response does not mention the current wire-transfer limit of $10,000.",
+    explanation: () => "Evaluates if the replayed answer cites the current $10,000 wire limit.",
+    baselineResult: "FAILED — Claimed limit is $5,000",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Stated limit is $10,000" : "FAILED — Did not state the $10,000 limit",
   },
   {
-    id: "does-not-claim-5000",
-    label: "Does not claim the wire-transfer limit is $5,000",
-    // Reject US-formatted "$5,000" or bare "5000" when used as a limit value
+    id: "eval-2",
+    label: "Does not treat $5,000 as limit",
     test: (r) => !/\$5,000|\$5000|5,000\s*(?:dollars?|per)|5000\s*(?:dollars?|per)/i.test(r),
-    explanation: (passed) =>
-      passed
-        ? "Response does not reference the outdated $5,000 limit."
-        : "Response incorrectly claims the wire-transfer limit is $5,000 (outdated 2024 policy).",
+    explanation: () => "Ensures the agent does not output or reinforce the outdated $5,000 limit.",
+    baselineResult: "FAILED — Used outdated limit ($5,000)",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Stale value was omitted entirely" : "FAILED — Referenced the outdated $5,000 limit",
   },
   {
-    id: "eligible-for-waiver",
-    label: "States that the customer qualifies for an overdraft-fee waiver",
-    test: (r) =>
-      /(eligible|qualify|qualifies|can waive|waiver.*grant|grant.*waiver|approved|approve)/i.test(r),
-    explanation: (passed) =>
-      passed
-        ? "Response correctly states the customer is eligible for an overdraft-fee waiver."
-        : "Response does not state that the customer qualifies for a waiver.",
-  },
-  {
-    id: "uses-90-day-policy",
-    label: "References the 90-day waiver policy",
-    test: (r) => /90[\s-]?day/i.test(r),
-    explanation: (passed) =>
-      passed
-        ? "Response correctly references the 90-day waiver eligibility window."
-        : "Response does not reference the 90-day waiver policy.",
-  },
-  {
-    id: "uses-120-day-history",
-    label: "Acknowledges that the last waiver was 120 days ago",
-    test: (r) => /120[\s-]?day/i.test(r),
-    explanation: (passed) =>
-      passed
-        ? "Response correctly acknowledges that the last waiver was 120 days ago."
-        : "Response does not reference the 120-day history.",
-  },
-  {
-    id: "does-not-use-2024-policy",
-    label: "Does not rely on the outdated 2024 policy",
+    id: "eval-3",
+    label: "Qualifies customer for fee waiver",
     test: (r) => {
-      // Check for each characteristic phrase of the superseded 2024 policy separately
-      // for clarity and easier future maintenance.
+      const hasNegation = /not eligible|unable to|cannot waive|declined|rejected/i.test(r);
+      const hasPositive = /(eligible|qualify|qualifies|can waive|waiver.*grant|grant.*waiver|approved|approve)/i.test(r);
+      return hasPositive && !hasNegation;
+    },
+    explanation: () => "Verifies the final answer explicitly states that the customer qualifies for a fee waiver.",
+    baselineResult: "FAILED — Rejected waiver request",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Confirmed waiver eligibility" : "FAILED — Did not confirm waiver eligibility",
+  },
+  {
+    id: "eval-4",
+    label: "Applies 90-day waiver rule",
+    test: (r) => /90[\s-]?day/i.test(r),
+    explanation: () => "Checks if the answer bases waiver eligibility on the 90-day Platinum cycle.",
+    baselineResult: 'FAILED — Cited "no waivers allowed"',
+    resultLabel: (passed) =>
+      passed ? "PASSED — Correctly cited 90-day Platinum eligibility" : "FAILED — Did not cite the 90-day policy",
+  },
+  {
+    id: "eval-5",
+    label: "Uses 120-day customer history",
+    test: (r) => /120[\s-]?day/i.test(r),
+    explanation: () => "Confirms checking that previous waiver was 120 days ago (meaning > 90 days, qualifying).",
+    baselineResult: "FAILED — Ignored previous transaction history",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Verified 120 days since previous waiver" : "FAILED — Did not reference the 120-day history",
+  },
+  {
+    id: "eval-6",
+    label: "Discards legacy 2024 policy",
+    test: (r) => {
       const referencesYear = /2024.*policy|policy.*2024/i.test(r);
       const usesBlankBan = /no.*waiver.*permitted/i.test(r);
-      const usesAbsoluteIneligibility =
-        /not.*eligible.*waiver.*circumstance/i.test(r);
+      const usesAbsoluteIneligibility = /not.*eligible.*waiver.*circumstance/i.test(r);
       return !(referencesYear || usesBlankBan || usesAbsoluteIneligibility);
     },
-    explanation: (passed) =>
-      passed
-        ? "Response does not rely on the superseded 2024 policy."
-        : "Response appears to rely on the outdated 2024 policy.",
+    explanation: () => "Confirms that the response did not integrate any elements of the superseded Archived Policy.",
+    baselineResult: "FAILED — Relying on legacy policy v2024.3",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Completely ignored legacy policy" : "FAILED — Relied on the superseded 2024 policy",
   },
 ];
+
+export const MORTGAGE_EVALUATION_TESTS: EvaluationTest[] = [
+  {
+    id: "mortgage-eval-1",
+    label: "Mentions 50% DTI limit",
+    test: (r) => /50%/i.test(r),
+    explanation: () => "Evaluates if the replayed answer cites the current 50% limit for Premier members.",
+    baselineResult: "FAILED — Claimed DTI is capped at 43%",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Cited 50% Premier limit" : "FAILED — Did not cite the 50% Premier limit",
+  },
+  {
+    id: "mortgage-eval-2",
+    label: "Does not apply 43% DTI cap",
+    test: (r) => !/43%/i.test(r),
+    explanation: () => "Ensures the agent does not output or reinforce the outdated 43% handbook rule.",
+    baselineResult: "FAILED — Applied legacy 43% limit",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Stale guideline omitted entirely" : "FAILED — Referenced the outdated 43% cap",
+  },
+  {
+    id: "mortgage-eval-3",
+    label: "Confirms pre-approval approval",
+    test: (r) => /(approved|qualify|qualifies|granted)/i.test(r),
+    explanation: () => "Verifies the final answer explicitly states that the applicant qualifies and is approved.",
+    baselineResult: "FAILED — Declined the mortgage request",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Pre-approval successfully approved" : "FAILED — Did not confirm pre-approval",
+  },
+  {
+    id: "mortgage-eval-4",
+    label: "Applies 2026 Premier tier waiver rules",
+    test: (r) => /premier/i.test(r),
+    explanation: () => "Checks if the answer bases mortgage eligibility on 2026 Premier tier brackets.",
+    baselineResult: "FAILED — Cited 2023 general rules",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Applied correct 2026 tier rules" : "FAILED — Did not apply Premier tier rules",
+  },
+  {
+    id: "mortgage-eval-5",
+    label: "Cites applicant 45% current DTI",
+    test: (r) => /45%/i.test(r),
+    explanation: () => "Confirms checking that applicant current DTI is 45% (which is < 50% allowed).",
+    baselineResult: "FAILED — Ignored CRM applicant record",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Confirmed 45% DTI is within 50% cap" : "FAILED — Did not cite the applicant's 45% DTI",
+  },
+  {
+    id: "mortgage-eval-6",
+    label: "Discards stale 2023 mortgage handbook",
+    test: (r) => !(/43%/i.test(r) || /2023/i.test(r) || /declined/i.test(r)),
+    explanation: () => "Confirms that the response did not integrate any elements of the superseded 2023 handbook.",
+    baselineResult: "FAILED — Relying on legacy mortgage handbook",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Completely ignored legacy handbook" : "FAILED — Relied on the superseded 2023 handbook",
+  },
+];
+
+export const CORPORATE_EVALUATION_TESTS: EvaluationTest[] = [
+  {
+    id: "corp-eval-1",
+    label: "Mentions business class authorization",
+    test: (r) => /business class/i.test(r) && /authoriz/i.test(r),
+    explanation: () => "Evaluates if the replayed answer cites business class is authorized for flights > 6 hours.",
+    baselineResult: "FAILED — Claimed business class is strictly prohibited",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Cites travel authorization for flights > 6 hours" : "FAILED — Did not cite business class authorization",
+  },
+  {
+    id: "corp-eval-2",
+    label: "Discards obsolete $150 hotel cap",
+    test: (r) => !/\$150/i.test(r),
+    explanation: () => "Ensures the agent does not output or reinforce the outdated 2022 hotel allowance.",
+    baselineResult: "FAILED — Applied obsolete $150 hotel limit",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Stale hotel limit was omitted entirely" : "FAILED — Referenced the outdated $150 hotel cap",
+  },
+  {
+    id: "corp-eval-3",
+    label: "Verifies route duration exceeds 6 hours",
+    test: (r) => /6[\s-]?hour/i.test(r),
+    explanation: () => "Verifies the final answer references traveler route exceeds 6 hours (JFK to LHR 7.5 hours).",
+    baselineResult: "FAILED — Omitted flight route duration check",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Verified flight exceeds 6 hours limit" : "FAILED — Did not verify the 6-hour flight duration rule",
+  },
+  {
+    id: "corp-eval-4",
+    label: "Restores correct $350 lodging allowance",
+    test: (r) => /\$350/i.test(r),
+    explanation: () => "Checks if the answer restores the current $350 lodging allowance rate for London.",
+    baselineResult: "FAILED — Standard $150 cap applied",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Cites standard city allowance of $350" : "FAILED — Did not cite the $350 lodging allowance",
+  },
+  {
+    id: "corp-eval-5",
+    label: "Cites Marcus Vance VP credentials",
+    test: (r) => /vice president|\bVP\b/i.test(r),
+    explanation: () => "Confirms checking that the employee is Vice President of Business Development.",
+    baselineResult: "FAILED — Ignored employee Workday folder details",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Verified Marcus Vance credentials" : "FAILED — Did not verify VP credentials",
+  },
+  {
+    id: "corp-eval-6",
+    label: "Excludes deprecated travel guidelines",
+    test: (r) => !(/\$150/i.test(r) || /2022/i.test(r) || /strictly prohibited/i.test(r)),
+    explanation: () => "Confirms that the response did not integrate any elements of the superseded 2022 circular.",
+    baselineResult: "FAILED — Relying on legacy 2022 guidelines",
+    resultLabel: (passed) =>
+      passed ? "PASSED — Completely ignored legacy travel circular" : "FAILED — Relied on the superseded 2022 circular",
+  },
+];
+
+export const EVALUATION_TESTS_BY_SCENARIO: Record<string, EvaluationTest[]> = {
+  "banking-policy-conflict": BANKING_EVALUATION_TESTS,
+  "mortgage-underwriting-conflict": MORTGAGE_EVALUATION_TESTS,
+  "corporate-policy-conflict": CORPORATE_EVALUATION_TESTS,
+};
 
 export function evaluateResponse(
   response: string,

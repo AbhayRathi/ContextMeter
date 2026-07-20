@@ -8,26 +8,30 @@ import { BANKING_SCENARIO } from "@context-meter/shared";
 vi.mock("../api.js");
 
 const mockScenario = BANKING_SCENARIO;
+const mockScenarioList = [{ id: BANKING_SCENARIO.id, title: BANKING_SCENARIO.title }];
 
 const mockAnalysis = {
   decisions: [
-    { blockId: "policy-2026", action: "KEEP" as const, reason: "Current policy", risk: "LOW" as const },
-    { blockId: "policy-2024", action: "REMOVE" as const, reason: "Stale", risk: "LOW" as const },
-    { blockId: "customer-profile", action: "KEEP" as const, reason: "Critical", risk: "LOW" as const },
-    { blockId: "account-history", action: "KEEP" as const, reason: "Critical", risk: "LOW" as const },
-    { blockId: "duplicate-conversation", action: "REMOVE" as const, reason: "Duplicate", risk: "LOW" as const },
-    { blockId: "marketing-promo", action: "REMOVE" as const, reason: "Irrelevant", risk: "LOW" as const },
+    { blockId: "block-1", action: "KEEP" as const, reason: "Current policy", risk: "LOW" as const },
+    { blockId: "block-2", action: "REMOVE" as const, reason: "Stale", risk: "LOW" as const },
+    { blockId: "block-3", action: "KEEP" as const, reason: "Critical", risk: "LOW" as const },
+    { blockId: "block-4", action: "KEEP" as const, reason: "Critical", risk: "LOW" as const },
+    { blockId: "block-5", action: "REMOVE" as const, reason: "Duplicate", risk: "LOW" as const },
+    { blockId: "block-6", action: "REMOVE" as const, reason: "Irrelevant", risk: "LOW" as const },
   ],
   conflicts: [
     {
       id: "conflict-1",
-      blockIds: ["policy-2024", "policy-2026"],
+      blockIds: ["block-2", "block-1"],
       description: "Policy conflict",
       resolution: "Use 2026 policy",
       severity: "HIGH" as const,
+      title: "Wire-Transfer Limit Contradiction",
+      blockAValue: "Wire-transfer limit is $10,000",
+      blockBValue: "Wire-transfer limit is $5,000",
     },
   ],
-  optimizedContextIds: ["policy-2026", "customer-profile", "account-history"],
+  optimizedContextIds: ["block-1", "block-3", "block-4"],
   summary: "Removed 3 blocks",
   baselineEstimatedTokens: 317,
   optimizedEstimatedTokens: 155,
@@ -52,6 +56,7 @@ const mockReplay = {
 describe("App workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.fetchScenarios).mockResolvedValue(mockScenarioList);
     vi.mocked(api.fetchScenario).mockResolvedValue(mockScenario);
     vi.mocked(api.analyzeContext).mockResolvedValue(mockAnalysis);
     vi.mocked(api.replayAgent).mockResolvedValue(mockReplay);
@@ -67,12 +72,20 @@ describe("App workflow", () => {
 
   it("shows synthetic data notice", () => {
     render(<App />);
-    expect(screen.getByText(/Synthetic banking data/i)).toBeInTheDocument();
+    expect(screen.getByText(/Synthetic demo data/i)).toBeInTheDocument();
+  });
+
+  it("lists scenarios to choose from", async () => {
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByText(BANKING_SCENARIO.title)).toBeInTheDocument();
+    });
   });
 
   it("loads a scenario", async () => {
     render(<App />);
-    fireEvent.click(screen.getByText("Load Failed Trace"));
+    await waitFor(() => screen.getByText(BANKING_SCENARIO.title));
+    fireEvent.click(screen.getByText(BANKING_SCENARIO.title));
     await waitFor(() => {
       expect(api.fetchScenario).toHaveBeenCalledWith("banking-policy-conflict");
     });
@@ -83,25 +96,32 @@ describe("App workflow", () => {
 
   it("displays context cards after loading", async () => {
     render(<App />);
-    fireEvent.click(screen.getByText("Load Failed Trace"));
+    await waitFor(() => screen.getByText(BANKING_SCENARIO.title));
+    fireEvent.click(screen.getByText(BANKING_SCENARIO.title));
     await waitFor(() => {
-      expect(screen.getByText("Current Overdraft & Wire Policy (2026)")).toBeInTheDocument();
+      expect(screen.getByText("Current Consumer Banking Policy")).toBeInTheDocument();
     });
   });
 
   it("runs analysis after loading", async () => {
     render(<App />);
-    fireEvent.click(screen.getByText("Load Failed Trace"));
+    await waitFor(() => screen.getByText(BANKING_SCENARIO.title));
+    fireEvent.click(screen.getByText(BANKING_SCENARIO.title));
     await waitFor(() => screen.getByText(/Analyze Context/));
     fireEvent.click(screen.getByText("Analyze Context"));
     await waitFor(() => {
-      expect(api.analyzeContext).toHaveBeenCalled();
+      expect(api.analyzeContext).toHaveBeenCalledWith(
+        "banking-policy-conflict",
+        mockScenario.customerTask,
+        mockScenario.contextBlocks
+      );
     });
   });
 
   it("replays agent after optimization", async () => {
     render(<App />);
-    fireEvent.click(screen.getByText("Load Failed Trace"));
+    await waitFor(() => screen.getByText(BANKING_SCENARIO.title));
+    fireEvent.click(screen.getByText(BANKING_SCENARIO.title));
     await waitFor(() => screen.getByText("Analyze Context"));
     fireEvent.click(screen.getByText("Analyze Context"));
     await waitFor(() => screen.getByText("Apply Optimization"));
@@ -114,7 +134,8 @@ describe("App workflow", () => {
 
   it("displays evaluation results after replay", async () => {
     render(<App />);
-    fireEvent.click(screen.getByText("Load Failed Trace"));
+    await waitFor(() => screen.getByText(BANKING_SCENARIO.title));
+    fireEvent.click(screen.getByText(BANKING_SCENARIO.title));
     await waitFor(() => screen.getByText("Analyze Context"));
     fireEvent.click(screen.getByText("Analyze Context"));
     await waitFor(() => screen.getByText("Apply Optimization"));
@@ -128,7 +149,8 @@ describe("App workflow", () => {
   it("handles API errors gracefully", async () => {
     vi.mocked(api.fetchScenario).mockRejectedValue(new Error("Network error"));
     render(<App />);
-    fireEvent.click(screen.getByText("Load Failed Trace"));
+    await waitFor(() => screen.getByText(BANKING_SCENARIO.title));
+    fireEvent.click(screen.getByText(BANKING_SCENARIO.title));
     await waitFor(() => {
       expect(screen.getByText(/Network error/)).toBeInTheDocument();
     });

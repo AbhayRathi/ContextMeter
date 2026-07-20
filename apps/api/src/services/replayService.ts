@@ -1,24 +1,35 @@
 import type { ContextBlock, EvaluationSummary } from "@context-meter/shared";
-import { evaluateResponse } from "@context-meter/shared";
+import {
+  ALL_SCENARIOS,
+  EVALUATION_TESTS_BY_SCENARIO,
+  BANKING_EVALUATION_TESTS,
+  evaluateResponse,
+} from "@context-meter/shared";
 import { sumBlockTokens } from "./tokenEstimator.js";
 
 /**
- * Deterministic fallback replay response for the banking scenario.
+ * Deterministic fallback replay, used when no Gemini key is configured.
+ * Reads the scenario's canned `expectedOptimizedResponse` from fixture data
+ * and evaluates it against that scenario's evaluation tests.
  */
-export const FALLBACK_OPTIMIZED_RESPONSE =
-  "Based on your account information: You are eligible for an overdraft-fee waiver. Our current 2026 Platinum policy allows one waiver every 90 days, and your last waiver was 120 days ago — well within the eligibility window. Your current wire-transfer limit is $10,000 per transaction, as set by the current 2026 policy.";
-
-export function fallbackReplay(blocks: ContextBlock[]): {
+export function fallbackReplay(
+  scenarioId: string | undefined,
+  blocks: ContextBlock[]
+): {
   response: string;
   estimatedInputTokens: number;
   evaluation: EvaluationSummary;
   mode: "fallback";
 } {
+  const scenario = ALL_SCENARIOS.find((s) => s.id === scenarioId);
+  const response = scenario?.expectedOptimizedResponse ?? "";
+  const tests = (scenarioId !== undefined ? EVALUATION_TESTS_BY_SCENARIO[scenarioId] : undefined) ?? BANKING_EVALUATION_TESTS;
+
   const estimatedInputTokens = sumBlockTokens(blocks);
-  const evaluation = evaluateResponse(FALLBACK_OPTIMIZED_RESPONSE);
+  const evaluation = evaluateResponse(response, tests);
 
   return {
-    response: FALLBACK_OPTIMIZED_RESPONSE,
+    response,
     estimatedInputTokens,
     evaluation,
     mode: "fallback",

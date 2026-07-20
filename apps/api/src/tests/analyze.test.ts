@@ -6,12 +6,13 @@ import { BANKING_CONTEXT_BLOCKS } from "@context-meter/shared";
 const app = createApp();
 
 describe("POST /api/analyze", () => {
+  // Mirrors exactly what studio-web sends: no scenarioId at all.
   const validBody = {
-    task: "Can you waive my overdraft fee, and what is my current wire-transfer limit?",
+    task: "Am I eligible for an overdraft-fee waiver, and what is my current wire-transfer limit?",
     contextBlocks: BANKING_CONTEXT_BLOCKS,
   };
 
-  it("returns 200 with fallback analysis in mock mode", async () => {
+  it("returns 200 with fallback analysis in mock mode, inferring the scenario from block IDs", async () => {
     const res = await request(app).post("/api/analyze").send(validBody);
     expect(res.status).toBe(200);
     expect(res.body.mode).toBe("fallback");
@@ -20,25 +21,40 @@ describe("POST /api/analyze", () => {
     expect(res.body.optimizedContextIds).toBeInstanceOf(Array);
     expect(res.body.baselineEstimatedTokens).toBeGreaterThan(0);
     expect(res.body.optimizedEstimatedTokens).toBeGreaterThan(0);
-    expect(res.body.optimizedEstimatedTokens).toBeLessThan(
-      res.body.baselineEstimatedTokens
-    );
+    expect(res.body.optimizedEstimatedTokens).toBeLessThan(res.body.baselineEstimatedTokens);
   });
 
-  it("removes stale and irrelevant blocks in fallback", async () => {
+  it("removes stale and irrelevant blocks, using the studio-web decision field names", async () => {
     const res = await request(app).post("/api/analyze").send(validBody);
     const removedIds = res.body.decisions
-      .filter((d: { action: string }) => d.action === "REMOVE")
-      .map((d: { blockId: string }) => d.blockId);
-    expect(removedIds).toContain("policy-2024");
-    expect(removedIds).toContain("duplicate-conversation");
-    expect(removedIds).toContain("marketing-promo");
+      .filter((d: { recommendedAction: string }) => d.recommendedAction === "REMOVE")
+      .map((d: { contextBlockId: string }) => d.contextBlockId);
+    expect(removedIds).toContain("block-2");
+    expect(removedIds).toContain("block-5");
+    expect(removedIds).toContain("block-6");
+
+    const kept = res.body.decisions.find((d: { contextBlockId: string }) => d.contextBlockId === "block-1");
+    expect(kept.recommendedAction).toBe("KEEP");
+    expect(kept.riskIfRemoved).toBeTruthy();
   });
 
-  it("identifies policy conflict", async () => {
+  it("identifies conflicts in the blockA/blockB studio-web shape", async () => {
     const res = await request(app).post("/api/analyze").send(validBody);
-    expect(res.body.conflicts.length).toBeGreaterThan(0);
-    expect(res.body.conflicts[0].severity).toBe("HIGH");
+    expect(res.body.conflicts.length).toBe(2);
+    const conflict = res.body.conflicts[0];
+    expect(conflict.severity).toBe("High");
+    expect(conflict.blockA.isNewer).toBe(true);
+    expect(conflict.blockB.isNewer).toBe(false);
+    expect(conflict.blockA.value).toBeTruthy();
+    expect(conflict.blockB.value).toBeTruthy();
+  });
+
+  it("still accepts an explicit scenarioId (backward compatible)", async () => {
+    const res = await request(app)
+      .post("/api/analyze")
+      .send({ ...validBody, scenarioId: "banking-policy-conflict" });
+    expect(res.status).toBe(200);
+    expect(res.body.conflicts.length).toBe(2);
   });
 
   it("returns 400 for missing task", async () => {

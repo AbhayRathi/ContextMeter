@@ -1,0 +1,6 @@
+{
+  "name": "ContextMeter",
+  "description": "Context observability and optimization platform for AI agents",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

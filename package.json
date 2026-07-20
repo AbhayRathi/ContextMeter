@@ -7,7 +7,8 @@
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:web": "npm run dev --workspace=apps/web",
-    "build": "npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npm run build --workspace=apps/web",
+    "dev:studio": "concurrently \"npm run dev:api\" \"npm run dev --workspace=apps/studio-web\"",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npm run build --workspace=apps/web && npm run build --workspace=apps/studio-web",
     "test": "npm run test --workspace=packages/shared && npm run test --workspace=apps/api && npm run test --workspace=apps/web",
     "test:coverage": "npm run test:coverage --workspace=packages/shared && npm run test:coverage --workspace=apps/api && npm run test:coverage --workspace=apps/web",
     "lint": "eslint .",
@@ -21,5 +22,11 @@
     "eslint": "^8.57.0",
     "prettier": "^3.2.5",
     "typescript": "^5.4.5"
+  },
+  "overrides": {
+    "lucide-react": {
+      "react": "19.2.7",
+      "react-dom": "19.2.7"
+    }
   }
 }

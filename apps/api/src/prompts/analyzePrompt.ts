@@ -34,7 +34,7 @@ INSTRUCTIONS:
 - Identify duplicate information that appears in multiple blocks.
 - Identify irrelevant information that does not help answer the task.
 - Preserve facts required to answer the task correctly.
-- Do NOT make a final banking decision — only analyze the context quality.
+- Do NOT make a final decision on the task itself — only analyze the context quality.
 - Return ONLY valid JSON matching the schema below. No markdown, no prose.
 
 REQUIRED JSON SCHEMA:
@@ -44,16 +44,20 @@ REQUIRED JSON SCHEMA:
       "blockId": "string (must match an id from the context blocks)",
       "action": "KEEP" | "REMOVE" | "COMPRESS" | "REFRESH",
       "reason": "string",
-      "risk": "LOW" | "MEDIUM" | "HIGH"
+      "risk": "LOW" | "MEDIUM" | "HIGH",
+      "riskIfRemoved": "string — the concrete consequence if this block were dropped, e.g. \"The agent will quote the wrong wire-transfer limit.\""
     }
   ],
   "conflicts": [
     {
       "id": "string",
-      "blockIds": ["string"],
+      "blockIds": ["string", "string"],
       "description": "string",
       "resolution": "string",
-      "severity": "LOW" | "MEDIUM" | "HIGH"
+      "severity": "LOW" | "MEDIUM" | "HIGH",
+      "title": "string — a short label for the conflict, e.g. \"Wire-Transfer Limit Contradiction\"",
+      "blockAValue": "string — the specific conflicting fact from the newer block (blockIds[0])",
+      "blockBValue": "string — the specific conflicting fact from the older block (blockIds[1])"
     }
   ],
   "optimizedContextIds": ["string"],
@@ -62,5 +66,7 @@ REQUIRED JSON SCHEMA:
   "optimizedEstimatedTokens": number
 }
 
-Every context block must have exactly one decision. The optimizedContextIds array must contain only block IDs with action KEEP.`;
+Every context block must have exactly one decision, and every decision must include riskIfRemoved.
+Every conflict's blockIds must be ordered [newerBlockId, olderBlockId] — the more current/authoritative block first — and must include title, blockAValue, and blockBValue.
+The optimizedContextIds array must contain only block IDs with action KEEP.`;
 }

@@ -256,7 +256,6 @@ Adding a 4th scenario: add a new `Scenario` object to `fixtures.ts` (context blo
 - No persistence — state resets on page refresh
 - `apps/web` is a smaller reference frontend kept for the *original* wire shape; it's no longer production-served (see Architecture) and will show stale fields if pointed at the live backend
 - Rate limiting is in-memory and per-instance (see Vercel deployment caveat above)
-- The Gemini prompt/response schema (`apps/api/src/prompts/`) doesn't yet request `riskIfRemoved`/conflict `title`/`blockAValue`/`blockBValue` — until updated, a real Gemini response will fail schema validation and silently fall back to the canned response (safe, but means "LIVE FEED via Gemini" won't show genuine LLM output yet even with a valid key)
 
 ## Post-Hackathon Roadmap
 

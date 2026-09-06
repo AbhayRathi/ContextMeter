@@ -1,0 +1,25 @@
+{
+  "name": "@context-meter/bench",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "bench": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@context-meter/sdk": "*",
+    "@context-meter/shared": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@vitest/coverage-v8": "^1.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.4.5",
+    "vitest": "^1.4.0"
+  }
+}

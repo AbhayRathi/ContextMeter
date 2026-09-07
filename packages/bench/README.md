@@ -35,35 +35,52 @@ API_PORT=8091 npm run dev --workspace=apps/api
 Then, from the repo root:
 
 ```bash
-npm run bench -- --source=druid,ragbench --n=50 --api-url=http://localhost:8091
+# decision quality only (no API key needed, fast):
+npm run bench -- --source=druid,ragbench --n=120 --api-url=http://localhost:8091
+
+# + answer-accuracy grading (needs GEMINI_API_KEY; ~4 Gemini calls per case):
+npm run bench -- --source=druid,ragbench --n=40 --accuracy --api-url=http://localhost:8091
 ```
 
 Flags:
 - `--source` — comma-separated: `druid`, `ragbench`, or both (default: both)
 - `--n` — cases to pull per source (default: 50)
-- `--ragbench-subsets` — comma-separated RAGBench configs (default: `hotpotqa,finqa,covidqa`; 12 available, see the dataset card)
+- `--ragbench-subsets` — comma-separated RAGBench configs (default: all 12; see the dataset card)
+- `--accuracy` — also run answer-accuracy grading (see below). Requires `GEMINI_API_KEY` in the env — run via `npx tsx --env-file-if-exists=../../.env …` or export the key.
+- `--concurrency` — cases graded in parallel in accuracy mode (default 2; a **free-tier** Gemini key allows only ~5 requests/min/model, so keep it at 1–2 and expect ~1 case/min. Raise once billing is enabled.)
 - `--api-url` — base URL of a running `apps/api` instance (default: `http://localhost:8080`)
 - `--out` — path to write the full per-case JSON report (default: `packages/bench/reports/<timestamp>.json`)
 
-This calls `POST /api/analyze/heuristic` (the generic engine — the only one
-that works on context it wasn't fixture-tuned for) via `@context-meter/sdk`'s
-`ContextMeterClient`, the same client the CLI and Express middleware use.
+The decision-quality pass calls `POST /api/analyze/heuristic` (the generic
+engine) via `@context-meter/sdk`'s `ContextMeterClient`, the same client the
+CLI and Express middleware use.
 
-## What it measures (and what it doesn't yet)
+## What it measures
 
-Currently scored: **decision quality** (precision/recall/F1 of KEEP vs. a
-real relevance label), **conflict detection** (recall against real labeled
-contradictions), and **efficiency** (token reduction %).
+**1. Decision quality** — precision/recall/F1 of the engine's KEEP calls
+against each dataset's real relevance labels, plus mean token reduction.
 
-Not yet scored: **end-to-end answer accuracy** (does replaying with the
-optimized context actually produce a better answer than the baseline). Both
-datasets carry a reference answer (`groundTruth.referenceLabel` —
-`factcheck_verdict` for DRUID, `response` for RAGBench) for exactly this, but
-grading free-text output against it needs either an LLM-judge call or the
-live Gemini engine — wire that up once a `GEMINI_API_KEY` (or another judge
-model) is available; `USE_MOCK_GEMINI=true` by default has no API key
-configured, and the canned fallback engine only "knows" the 3 shipped demo
-scenarios so it can't run on these cases at all.
+**2. Conflict detection** — recall against DRUID's labeled opposing-stance
+evidence pairs. (Heuristic engine only detects *recency* conflicts, so this
+number is a floor, not a ceiling — see Results.)
+
+**3. Answer accuracy** (`--accuracy`) — the core "does removing context
+actually help?" measurement. Per case:
+  1. replay the task with **all** context blocks → `answerFull`
+  2. replay with only the blocks the engine kept → `answerOptimized`
+  3. LLM-judge both against the dataset gold (`groundTruth.referenceLabel` —
+     `factcheck_verdict` for DRUID, `response` for RAGBench), 0–100
+
+Reported: mean score full vs. optimized, the **delta**, the share of cases
+where the optimized answer was *no worse* than the full-context answer, and
+the share where it was *strictly better*. `delta ≥ 0` means the pruning was
+free (same answer quality, fewer tokens); `delta > 0` means the removed
+blocks were actively hurting.
+
+The replay + judge calls use the bench's own thin Gemini wrapper
+(`src/llm.ts`), deliberately separate from `apps/api`'s client — those calls
+are the product, these are the measurement rig. The *analyze* call being
+measured still goes through the live API.
 
 ## Results
 
@@ -100,6 +117,25 @@ engine (`/api/analyze`) is meant for the cases that need real reasoning.
 — it does **not** detect *contradiction* conflicts where two sources disagree
 on a fact without a date signal, which is most of what DRUID's opposing-stance
 pairs are. Closing that gap needs the LLM engine.
+
+### Answer accuracy — pending a paid Gemini key
+
+`--accuracy` is implemented and validated end-to-end (replay full-context +
+optimized-context, LLM-judge both against the dataset gold, aggregate the
+delta). But a **free-tier** Gemini key is capped at **20 requests/day per
+model** — both `gemini-3.8-flash` and `gemini-2.5-flash` daily quotas are
+exhausted after a handful of cases. A meaningful run needs billing enabled on
+the Google AI Studio project; then:
+
+```bash
+npm run bench -- --source=druid,ragbench --n=40 --accuracy --api-url=http://localhost:8091
+```
+
+Note: DRUID's gold is a bare fact-check verdict ("False", "Half True"), which
+the 0–100 judge grades harshly against a 2-sentence answer — expect DRUID
+absolute accuracy scores to look low regardless of context quality; the
+*delta* (full vs. optimized) is the signal, and RAGBench (gold = a full
+reference answer) is the cleaner accuracy measure.
 
 ### First run — n=8 per source (2026-09-04), before the inferred-mode fix
 

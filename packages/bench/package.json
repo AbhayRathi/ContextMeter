@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@context-meter/sdk": "*",
-    "@context-meter/shared": "*"
+    "@context-meter/shared": "*",
+    "@google/genai": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

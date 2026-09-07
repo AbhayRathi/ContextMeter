@@ -20,7 +20,21 @@ import type { BenchCase } from "../types.js";
  */
 const DATASET = "galileo-ai/ragbench";
 const SPLIT = "test";
-export const DEFAULT_RAGBENCH_SUBSETS = ["hotpotqa", "finqa", "covidqa"];
+/** All 12 RAGBench source datasets — spread across domains (QA, legal, finance, technical, biomedical). */
+export const DEFAULT_RAGBENCH_SUBSETS = [
+  "covidqa",
+  "cuad",
+  "delucionqa",
+  "emanual",
+  "expertqa",
+  "finqa",
+  "hagrid",
+  "hotpotqa",
+  "msmarco",
+  "pubmedqa",
+  "tatqa",
+  "techqa",
+];
 
 export interface RagbenchRow {
   id: string;

@@ -74,17 +74,34 @@ export class ContextMeterClient {
       headers.Authorization = `Bearer ${this.apiKey}`;
     }
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+    const maxAttempts = 5;
+    for (let attempt = 1; ; attempt++) {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
 
-    if (!res.ok) {
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
+
+      // 429 (rate limited) and 503 (transient) are worth retrying; honour a
+      // Retry-After / RateLimit-Reset hint when the server sends one.
+      const retryable = res.status === 429 || res.status === 503;
+      if (retryable && attempt < maxAttempts) {
+        const resetHint = Number(
+          res.headers.get("retry-after") ?? res.headers.get("ratelimit-reset") ?? ""
+        );
+        const waitMs = Number.isFinite(resetHint) && resetHint > 0
+          ? Math.min(resetHint * 1000, 60_000)
+          : 500 * 2 ** (attempt - 1) * (0.5 + Math.random());
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+
       const text = await res.text().catch(() => "");
       throw new Error(`ContextMeter request to ${path} failed: ${res.status} ${text}`);
     }
-
-    return (await res.json()) as T;
   }
 }

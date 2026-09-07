@@ -31,7 +31,11 @@ const result = await runBench({
   casesPerSource,
   ragbenchSubsets,
   onCaseScored: (score, i, total) => {
-    process.stdout.write(`\r  scored ${i}/${total} cases (${score.source})...`);
+    if (process.stdout.isTTY) {
+      process.stdout.write(`\r  scored ${i}/${total} cases (${score.source})...`);
+    } else if (i % 20 === 0 || i === total) {
+      console.log(`  scored ${i}/${total} cases`);
+    }
   },
 });
 

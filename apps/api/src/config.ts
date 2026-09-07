@@ -13,4 +13,7 @@ export const config = {
   geminiModel: process.env["GEMINI_MODEL"] ?? "gemini-flash-latest",
   useMockGemini: (process.env["USE_MOCK_GEMINI"] ?? "true") === "true",
   nodeEnv: process.env["NODE_ENV"] ?? "development",
+  // Requests per minute per IP on /api. Raise for local batch work (the bench
+  // harness fires hundreds of analyze calls back-to-back); keep modest in prod.
+  rateLimitMax: parseInt(process.env["RATE_LIMIT_MAX"] ?? "60", 10),
 } as const;

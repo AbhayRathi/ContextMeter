@@ -17,7 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 60,             // 60 requests per minute per IP
+  max: config.rateLimitMax, // per IP; RATE_LIMIT_MAX env, default 60
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { code: "RATE_LIMITED", message: "Too many requests. Please try again later." } },

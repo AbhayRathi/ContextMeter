@@ -65,29 +65,54 @@ model) is available; `USE_MOCK_GEMINI=true` by default has no API key
 configured, and the canned fallback engine only "knows" the 3 shipped demo
 scenarios so it can't run on these cases at all.
 
-## Example finding (n=8 per source, 2026-09-04)
+## Results
+
+### Latest — n=120 per source, all 12 RAGBench domains (2026-09-07)
 
 ```
-── druid (8 cases) ──
-  KEEP/REMOVE precision: 0.0%
-  KEEP/REMOVE recall:    0.0%
-  Mean token reduction:  100.0%
-  Conflict recall:       33.3%
-── ragbench (8 cases) ──
-  KEEP/REMOVE precision: 63.0%
-  KEEP/REMOVE recall:    94.4%
-  Mean token reduction:  2.8%
+── druid (120 cases) ──
+  KEEP/REMOVE precision: 100.0%
+  KEEP/REMOVE recall:    68.5%
+  KEEP/REMOVE F1:        81.3%
+  Mean token reduction:  36.7%
+  Conflict recall:       54.0%
+── ragbench (120 cases) ──
+  KEEP/REMOVE precision: 59.5%
+  KEEP/REMOVE recall:    74.2%
+  KEEP/REMOVE F1:        66.0%
+  Mean token reduction:  35.4%
+── all (240 cases) ──
+  KEEP/REMOVE precision: 78.2%
+  KEEP/REMOVE recall:    70.7%
+  KEEP/REMOVE F1:        74.3%
+  Mean token reduction:  36.0%
 ```
 
-The heuristic engine removed **every** DRUID block in every case (100% token
-reduction, 0% recall). Root cause: its scoring formula weights `priority`
-heavily (`PRIORITY_COEFF = 0.5`, see `apps/api/src/services/heuristicAnalyzer.ts`)
-and defaults unset `priority` to `medium` (0.5) — fine for the fixtures, which
-always set an explicit priority, but real DRUID/RAGBench blocks never carry
-one. Combined with most DRUID evidence being non-`is_gold` (lowering the
-verified term too), nearly every real-world block lands just under the 0.45
-KEEP threshold regardless of relevance. This is exactly the kind of gap this
-package exists to surface — a bigger, longer bench run should confirm the
-size of the effect and prioritize a fix (e.g. don't penalize unset priority
-as hard, or infer a priority signal from category/source instead of
-defaulting to medium) before claiming the heuristic engine generalizes.
+Read this as: the heuristic engine is a **coarse pre-filter**, not a scalpel.
+It keeps ~71% of the blocks that were actually needed while cutting ~36% of
+tokens; on RAGBench ~40% of what it keeps wasn't strictly needed (precision
+59.5%). Good enough to shrink a bloated context cheaply and deterministically;
+not good enough to be the only thing deciding what an agent sees. The LLM
+engine (`/api/analyze`) is meant for the cases that need real reasoning.
+
+**Conflict recall is 54%** and only measured on DRUID. The heuristic detects
+*recency* conflicts (same category, similar content, different `effectiveDate`)
+— it does **not** detect *contradiction* conflicts where two sources disagree
+on a fact without a date signal, which is most of what DRUID's opposing-stance
+pairs are. Closing that gap needs the LLM engine.
+
+### First run — n=8 per source (2026-09-04), before the inferred-mode fix
+
+```
+── druid (8 cases) ──   precision 0.0%   recall 0.0%    token reduction 100.0%
+── ragbench (8 cases) ── precision 63.0%  recall 94.4%   token reduction 2.8%
+```
+
+The engine removed **every** DRUID block and kept **every** RAGBench block —
+it wasn't discriminating at all. Cause: with no caller-supplied `priority`
+(which no real dataset provides), the scoring formula's fixed additive prior
+dominated, so a block's fate was decided by whether `verified` happened to be
+true, not by relevance. Fixed in `apps/api/src/services/heuristicAnalyzer.ts`
+by adding **inferred mode** — when no block carries a `priority`, rank by
+relevance normalised within the request instead of an absolute threshold. The
+numbers above are post-fix.

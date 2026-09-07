@@ -13,9 +13,25 @@ import { sumBlockTokens } from "./tokenEstimator.js";
  * unlike the canned fallback (which only "knows" the 3 shipped scenarios),
  * this reasons about whatever context blocks are handed to it.
  *
- * Score per block = weighted(relevance to task, priority, verified) minus
- * penalties for staleness (superseded by a newer same-topic block) and
- * duplication (near-identical content already covered elsewhere).
+ * Two modes, picked automatically:
+ *
+ * - **authored** — at least one block carries an explicit `priority`. That's a
+ *   deliberate caller signal ("this block is critical / this one is low"), so
+ *   the score is a weighted sum of relevance + priority + verified against a
+ *   fixed keep threshold. The 3 shipped fixtures are all authored this way.
+ *
+ * - **inferred** — no block carries a `priority` (every real-world dataset:
+ *   RAG retrievals, message history, vector-DB hits never set one). A fixed
+ *   additive prior then dominates the score and the analyzer either keeps or
+ *   drops *everything*. So instead we rank by relevance **normalised within
+ *   the case** (each block's word-overlap similarity to the task, divided by
+ *   the strongest such score in the same case) and keep blocks that are at
+ *   least `INFERRED_KEEP_FRACTION` as on-topic as the best block, after the
+ *   same staleness / duplication penalties.
+ *
+ * Both modes share the staleness detector (same-category blocks, similar
+ * content, different effectiveDate → older one flagged + a conflict emitted)
+ * and the duplication detector.
  */
 const PRIORITY_WEIGHT: Record<string, number> = {
   critical: 1.0,
@@ -43,6 +59,14 @@ const DUPLICATE_PENALTY = 0.4;
 const KEEP_THRESHOLD = 0.45;
 const BORDERLINE_BAND = 0.15;
 
+// Inferred mode: keep a block if its within-case normalised relevance (best
+// block in the case = 1.0) is at least this fraction. 0.4 keeps anything
+// meaningfully on-topic while dropping clear filler; tuned against packages/bench.
+const INFERRED_KEEP_FRACTION = 0.4;
+// If every block in the case is (nearly) equally (ir)relevant by word overlap,
+// there's no signal to rank on — keep them all rather than drop them all.
+const INFERRED_NO_SIGNAL_SPREAD = 0.02;
+
 function priorityWeight(block: ContextBlock): number {
   return block.priority ? PRIORITY_WEIGHT[block.priority] ?? DEFAULT_PRIORITY_WEIGHT : DEFAULT_PRIORITY_WEIGHT;
 }
@@ -53,16 +77,35 @@ function round2(n: number): number {
 
 export function heuristicAnalyze(task: string, blocks: ContextBlock[]): ContextAnalysisResult {
   const taskTokens = tokenize(task);
+  const mode: "authored" | "inferred" = blocks.some((b) => b.priority) ? "authored" : "inferred";
 
-  const baseScores = new Map<string, number>();
   const relevanceById = new Map<string, number>();
   for (const block of blocks) {
-    const relevance = jaccardSimilarity(tokenize(`${block.title} ${block.content}`), taskTokens);
-    const score =
-      RELEVANCE_WEIGHT * relevance +
-      PRIORITY_COEFF * priorityWeight(block) +
-      VERIFIED_COEFF * (block.verified ? VERIFIED_WEIGHT : UNVERIFIED_WEIGHT);
-    relevanceById.set(block.id, relevance);
+    relevanceById.set(
+      block.id,
+      jaccardSimilarity(tokenize(`${block.title} ${block.content}`), taskTokens)
+    );
+  }
+
+  const maxRelevance = Math.max(0, ...relevanceById.values());
+  const minRelevance = Math.min(...relevanceById.values());
+  // In inferred mode with no lexical signal anywhere, fall back to keeping all.
+  const inferredHasSignal =
+    mode === "inferred" && maxRelevance - minRelevance > INFERRED_NO_SIGNAL_SPREAD;
+
+  const baseScores = new Map<string, number>();
+  for (const block of blocks) {
+    const relevance = relevanceById.get(block.id) ?? 0;
+    let score: number;
+    if (mode === "authored") {
+      score =
+        RELEVANCE_WEIGHT * relevance +
+        PRIORITY_COEFF * priorityWeight(block) +
+        VERIFIED_COEFF * (block.verified ? VERIFIED_WEIGHT : UNVERIFIED_WEIGHT);
+    } else {
+      // Normalised within the case: strongest block scores 1.0.
+      score = maxRelevance > 0 ? relevance / maxRelevance : 1;
+    }
     baseScores.set(block.id, score);
   }
 
@@ -126,22 +169,42 @@ export function heuristicAnalyze(task: string, blocks: ContextBlock[]): ContextA
     }
   }
 
+  const keepThreshold = mode === "authored" ? KEEP_THRESHOLD : INFERRED_KEEP_FRACTION;
+
   const decisions: ContextDecision[] = blocks.map((block) => {
     const base = baseScores.get(block.id) ?? 0;
     const penalty = (stalenessPenalty.get(block.id) ?? 0) + (duplicationPenalty.get(block.id) ?? 0);
     const finalScore = Math.max(0, Math.min(1, base - penalty));
-    const action = finalScore >= KEEP_THRESHOLD ? "KEEP" : "REMOVE";
-    const risk = Math.abs(finalScore - KEEP_THRESHOLD) <= BORDERLINE_BAND ? "MEDIUM" : "LOW";
+
+    const isStaleOrDup = penalty > 0;
+    let action: "KEEP" | "REMOVE";
+    if (mode === "inferred" && !inferredHasSignal && !isStaleOrDup) {
+      // No way to rank — don't drop everything.
+      action = "KEEP";
+    } else {
+      action = finalScore >= keepThreshold ? "KEEP" : "REMOVE";
+    }
+
+    const risk = Math.abs(finalScore - keepThreshold) <= BORDERLINE_BAND ? "MEDIUM" : "LOW";
 
     const factorNote =
       stalenessNote.get(block.id) ??
       duplicationNote.get(block.id) ??
-      `Relevance to task ${round2(relevanceById.get(block.id) ?? 0)}, priority weight ${round2(priorityWeight(block))}, verified: ${block.verified}.`;
+      (mode === "authored"
+        ? `Relevance to task ${round2(relevanceById.get(block.id) ?? 0)}, priority weight ${round2(priorityWeight(block))}, verified: ${block.verified}.`
+        : inferredHasSignal
+          ? `No caller priority set; ranking by relevance to task. Word-overlap similarity ${round2(relevanceById.get(block.id) ?? 0)}, i.e. ${round2(base)} of the strongest block in this set.`
+          : `No caller priority set and every block is about equally on-topic (word-overlap ${round2(relevanceById.get(block.id) ?? 0)}); keeping all — not enough signal to safely drop any.`);
+
+    const scoreClause =
+      mode === "inferred" && !inferredHasSignal && !isStaleOrDup
+        ? ""
+        : ` Score ${round2(finalScore)} ${action === "KEEP" ? "≥" : "<"} keep-threshold ${keepThreshold}.`;
 
     return {
       blockId: block.id,
       action,
-      reason: `${factorNote} Score ${round2(finalScore)} ${action === "KEEP" ? "≥" : "<"} keep-threshold ${KEEP_THRESHOLD}.`,
+      reason: `${factorNote}${scoreClause}`,
       risk,
     };
   });
@@ -156,7 +219,7 @@ export function heuristicAnalyze(task: string, blocks: ContextBlock[]): ContextA
       ? Math.round((1 - optimizedEstimatedTokens / baselineEstimatedTokens) * 100)
       : 0;
 
-  const summary = `Heuristic (similarity + recency scoring, no LLM) analyzed ${blocks.length} context blocks. Removed ${removedCount} block${removedCount === 1 ? "" : "s"}. Detected ${conflicts.length} conflict${conflicts.length === 1 ? "" : "s"} via same-category content similarity + effective-date comparison. Token usage: ${baselineEstimatedTokens} → ${optimizedEstimatedTokens} (~${reduction}% reduction).`;
+  const summary = `Heuristic (${mode} mode: ${mode === "authored" ? "weighted relevance + caller priority + verified" : "relevance normalised within the request"}, no LLM) analyzed ${blocks.length} context blocks. Removed ${removedCount} block${removedCount === 1 ? "" : "s"}. Detected ${conflicts.length} conflict${conflicts.length === 1 ? "" : "s"} via same-category content similarity + effective-date comparison. Token usage: ${baselineEstimatedTokens} → ${optimizedEstimatedTokens} (~${reduction}% reduction).`;
 
   return {
     decisions,
